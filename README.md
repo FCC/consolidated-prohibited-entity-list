@@ -51,6 +51,12 @@ python fetch_foreign_adversaries.py
 python compile_master_list.py
 ```
 
+Run the tests (they use the dependencies above and no network):
+
+```bash
+python -m unittest discover -s tests
+```
+
 Each fetcher writes a normalized JSON file to `output/raw/`. `compile_master_list.py` reads everything in `output/raw/`, deduplicates by normalized entity name and country using fuzzy matching, and writes:
 
 - `output/prohibited_entities_YYYYMMDD.csv`
@@ -63,7 +69,8 @@ Each fetcher writes a normalized JSON file to `output/raw/`. `compile_master_lis
 ## Known limitations
 
 - **FCC Covered List and Treasury NS-CMIC List** are served in ways that resist reliable scraping (client-side rendering and a retired XML endpoint, respectively). Both scripts fall back to a hardcoded list embedded in the script itself when the live fetch fails. These hardcoded fallbacks require manual review and update whenever the source agency amends its list. See the comments in `fetch_covered_list.py` and `fetch_treasury_ns_cmic.py` for details and current verification links.
-- **NDAA §§ 5949 and 1260H** are extracted from the underlying statutory PDF text. PDF parsing of legal text is imperfect. A manually curated fallback snapshot is bundled at `references/ndaa_fallback.json` and is used if parsing returns zero results.
+- **NDAA §§ 5949 and 1260H** are extracted from the underlying statutory PDF text. PDF parsing of legal text is imperfect. A manually curated fallback snapshot is read from `references/ndaa_fallback.json` and is used if parsing returns zero results.
+- **Feed fallback.** When `references/ndaa_fallback.json` has no § 1260H entries, when the FCC Covered List page cannot be read, or when dhs.gov does not return the UFLPA list, the scripts read that list from the [us-restricted-parties](https://github.com/Mattbusel/us-restricted-parties) feed, a daily build from the Federal Register and agency pages (`scripts/restricted_parties_feed.py`). Each file is pinned to one data release and checked against the SHA-256 in its `manifest.json`; set `US_RESTRICTED_PARTIES_RELEASE` to use another release, or `latest`. Entries from the feed say so in `notes`.
 - **Federal Register extraction** uses regex against notice text and should be treated as leads to verify, not confirmed entries.
 
 Given these limitations, users are responsible for verifying the accuracy of any output produced by these scripts against the original source list published by the responsible agency. This repository is not the authoritative FCC list. The authoritative, regularly updated consolidated list is maintained at [fcc.gov/engineering-technology/prohibited-entities-list](https://www.fcc.gov/engineering-technology/prohibited-entities-list).
