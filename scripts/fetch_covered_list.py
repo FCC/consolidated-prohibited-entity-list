@@ -9,7 +9,9 @@ Fetch strategy (tried in order):
   1. FCC JSON/API endpoint — the FCC site fetches the list data from an internal
      endpoint; we attempt to hit it directly.
   2. Static HTML parse with a longer wait + pre-rendered page heuristics.
-  3. HARDCODED FALLBACK — the Covered List is short (~6 entities as of 2026) and
+  3. us-restricted-parties feed: a daily build of the Covered List from fcc.gov,
+     pinned to one release and checked against its SHA-256 (restricted_parties_feed.py).
+  4. HARDCODED FALLBACK — the Covered List is short (~6 entities as of 2026) and
      changes rarely (FCC docket-driven, with public notice). The hardcoded list is
      kept current here and should be manually updated whenever the FCC adds or
      removes entities. Each entry includes a verification date and FCC docket/order
@@ -27,6 +29,8 @@ import os
 import re
 import requests
 from bs4 import BeautifulSoup
+
+import restricted_parties_feed
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "output", "raw")
 FCC_PAGE_URL = "https://www.fcc.gov/supplychain/coveredlist"
@@ -221,7 +225,16 @@ def fetch():
         except Exception as e:
             print(f"[covered_list] HTML fetch error: {e}")
 
-    # 3. Hardcoded fallback
+    # 3. us-restricted-parties feed
+    if not entities:
+        print("[covered_list] Reading the Covered List from the us-restricted-parties feed...")
+        entities = restricted_parties_feed.fetch_list("us_fcc_covered", "FCC Covered List", 1)
+        for e in entities:
+            e["conditional_approval"] = False
+        if entities:
+            source_used = f"us-restricted-parties {restricted_parties_feed.RELEASE}"
+
+    # 4. Hardcoded fallback
     if not entities:
         print("[covered_list] Using hardcoded fallback list (FCC page is JS-rendered or unreachable).")
         print("[covered_list] IMPORTANT: Manually verify this list against "

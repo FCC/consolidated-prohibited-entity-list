@@ -15,6 +15,12 @@ references/ndaa_fallback.json, which is manually maintained.
 
 To update the lists: edit references/ndaa_fallback.json directly.
 
+When that file has no § 1260H entries (it is not committed to this repository),
+§ 1260H is read from the us-restricted-parties feed (see restricted_parties_feed.py):
+the DoD list from the Federal Register, split into parents and the subsidiaries
+named in each entry, with later removal notices applied. When the file does have
+entries, they are used and compared against the feed.
+
 Outputs: output/raw/ndaa_5949.json, output/raw/ndaa_1260h.json
 """
 
@@ -24,6 +30,8 @@ import re
 import requests
 import pdfplumber
 from io import BytesIO
+
+import restricted_parties_feed
 
 SCRIPT_DIR = os.path.dirname(__file__)
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "..", "output", "raw")
@@ -206,6 +214,16 @@ def fetch():
         entities = load_fallback(key)
         print(f"  Loaded {len(entities)} entities from references/ndaa_fallback.json")
         print(f"  Note: To update, edit references/ndaa_fallback.json directly.")
+
+        if key == "1260h":
+            feed = restricted_parties_feed.fetch_list(
+                "us_dod_1260h", cfg["label"], cfg["list_category"], country="China")
+            if entities:
+                restricted_parties_feed.report_differences(cfg["label"], entities, feed)
+            else:
+                entities = feed
+                print(f"  Loaded {len(entities)} entities from the us-restricted-parties feed "
+                      f"({restricted_parties_feed.RELEASE})")
 
         with open(out_path, "w") as f:
             json.dump(entities, f, indent=2)

@@ -1,7 +1,10 @@
 """
 fetch_uflpa.py
 Fetches the DHS UFLPA Entity List published by the Forced Labor Enforcement Task Force.
-Parses the HTML tables from the DHS entity list page.
+Parses the HTML tables from the DHS entity list page. When dhs.gov cannot be
+fetched (it answers some clients with 403) or no entities are found, the list is
+read from the us-restricted-parties feed, which builds it from the DHS notices in
+the Federal Register (restricted_parties_feed.py).
 Outputs: output/raw/uflpa.json
 """
 
@@ -9,6 +12,8 @@ import json
 import os
 import requests
 from bs4 import BeautifulSoup
+
+import restricted_parties_feed
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "output", "raw")
 
@@ -85,20 +90,21 @@ def fetch():
     out = os.path.join(OUTPUT_DIR, "uflpa.json")
     print(f"[UFLPA] Fetching {DHS_PAGE}")
 
+    entities = []
     try:
         r = requests.get(DHS_PAGE, headers=HEADERS, timeout=60)
         r.raise_for_status()
+        soup = BeautifulSoup(r.text, "lxml")
+        entities = parse_uflpa_tables(soup)
+        if not entities:
+            print("[UFLPA] WARNING: No entities extracted — page structure may have changed")
     except Exception as e:
         print(f"[UFLPA] ERROR: Could not fetch DHS UFLPA page: {e}")
-        with open(out, "w") as f:
-            json.dump([], f)
-        return []
-
-    soup = BeautifulSoup(r.text, "lxml")
-    entities = parse_uflpa_tables(soup)
 
     if not entities:
-        print("[UFLPA] WARNING: No entities extracted — page structure may have changed")
+        print("[UFLPA] Reading the UFLPA Entity List from the us-restricted-parties feed...")
+        entities = restricted_parties_feed.fetch_list(
+            "us_dhs_uflpa", "DHS UFLPA Entity List", 2, country="CN")
 
     with open(out, "w", encoding="utf-8") as f:
         json.dump(entities, f, indent=2, ensure_ascii=False)
